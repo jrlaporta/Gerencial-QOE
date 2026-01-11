@@ -1,8 +1,9 @@
 import sys
 import os
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(BASE_DIR)
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, ROOT_DIR)
+
 
 import streamlit as st
 import pandas as pd
@@ -497,4 +498,5 @@ elif menu == "Exportar Relatórios":
                 st.success("✅ Relatório gerado com sucesso!")
             except Exception as e:
                 st.error(f"❌ Erro ao gerar relatório: {str(e)}")
+
 
