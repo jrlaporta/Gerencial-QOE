@@ -3,7 +3,7 @@ import pandas as pd
 from datetime import datetime
 
 from modules.auth import autenticar
-from modules.loader import carregar_excel, salvar_historico, salvar_dados_atual, carregar_dados_salvos
+from modules.loader import carregar_excel, salvar_dados_atual, carregar_dados_salvos
 from modules.metrics import calcular_metricas
 from modules.charts import grafico_acoes_por_cidade, grafico_motivos, grafico_evolucao_nodes
 from modules.pdf_export import gerar_pdf, gerar_pdf_completo
@@ -79,7 +79,6 @@ if "df" not in st.session_state:
             arq = st.sidebar.file_uploader("Upload Excel", type=["xlsx"])
             if arq:
                 try:
-                    salvar_historico(arq)
                     df = carregar_excel(arq)
                     
                     # Validação de colunas essenciais
@@ -436,7 +435,6 @@ elif menu == "Upload de Dados":
         arq = st.file_uploader("Selecione o arquivo Excel", type=["xlsx"])
         if arq:
             try:
-                salvar_historico(arq)
                 df_novo = carregar_excel(arq)
                 
                 # Validação de colunas essenciais
@@ -466,11 +464,6 @@ elif menu == "Upload de Dados":
     else:
         st.warning("⚠️ Apenas administradores podem fazer upload de dados.")
         st.info("Você está visualizando os dados já carregados no sistema.")
-
-# HISTÓRICO
-elif menu == "Histórico":
-    st.title("📚 Histórico de Uploads")
-    st.info("Funcionalidade em desenvolvimento.")
 
 # EXPORTAR RELATÓRIOS
 elif menu == "Exportar Relatórios":
