@@ -286,72 +286,74 @@ elif menu.startswith("Setor"):
     setor = menu.replace("Setor ", "")
     st.title(f"Setor {setor}")
     st.caption("Análise detalhada do setor")
-    
+
     # Filtros
     df_filtrado, _, _ = criar_filtros(df)
-    
+
     # Filtra por setor (case-insensitive)
     if "SETOR" in df_filtrado.columns:
         df_setor = df_filtrado[df_filtrado["SETOR"].astype(str).str.upper() == setor.upper()].copy()
     else:
         df_setor = pd.DataFrame()
-    
+
     if len(df_setor) == 0:
         st.warning(f"Não há dados para o setor {setor} com os filtros selecionados.")
         st.info("Tente ajustar os filtros de mês ou cidade.")
     else:
-        # Calcula métricas
+        # Calcula métricas (POR NODE ABSOLUTO)
         df_nodes = consolidar_nodes(df_setor)
 
-m = {
-    "acoes": len(df_setor),
-    "qoe_antes": round(df_nodes["QOE ANTES"].mean(), 1),
-    "qoe_depois": round(df_nodes["QOE DEP"].mean(), 1),
-    "melhoraram": int(df_nodes["Melhorou"].sum()),
-    "pioraram": int(df_nodes["Piorou"].sum()),
-    "mantiveram": int(df_nodes["Manteve"].sum()),
-    "nodes_80": int(df_nodes["Atingiu_80"].sum()),
-    "atingiram_80": int(df_nodes["Atingiu_80_pos"].sum()),
-    "perc_atingiram_80": round(
-        (df_nodes["Atingiu_80_pos"].sum() / max(1, (df_nodes["QOE ANTES"] < 80).sum())) * 100, 1
-    ),
-    "perc_total_80": round((df_nodes["Atingiu_80"].sum() / len(df_nodes)) * 100, 1)
-}
+        m = {
+            "acoes": len(df_setor),
+            "qoe_antes": round(df_nodes["QOE ANTES"].mean(), 1),
+            "qoe_depois": round(df_nodes["QOE DEP"].mean(), 1),
+            "melhoraram": int(df_nodes["Melhorou"].sum()),
+            "pioraram": int(df_nodes["Piorou"].sum()),
+            "mantiveram": int(df_nodes["Manteve"].sum()),
+            "nodes_80": int(df_nodes["Atingiu_80"].sum()),
+            "atingiram_80": int(df_nodes["Atingiu_80_pos"].sum()),
+            "perc_atingiram_80": round(
+                (df_nodes["Atingiu_80_pos"].sum() / max(1, (df_nodes["QOE ANTES"] < 80).sum())) * 100, 1
+            ),
+            "perc_total_80": round((df_nodes["Atingiu_80"].sum() / max(1, len(df_nodes))) * 100, 1)
+        }
 
-        
         # Métricas principais
         col1, col2, col3, col4 = st.columns(4)
-        
+
         with col1:
             st.metric(
                 "Total de Ações",
                 m["acoes"],
                 help="Intervenções no setor"
             )
-        
+
         with col2:
             st.metric(
                 "QOE Médio Antes",
                 f'{m["qoe_antes"]}',
-                help="Média antes das ações"
+                help="Média antes das ações (por node absoluto)"
             )
-        
+
         with col3:
-            evolucao_qoe = m["qoe_depois"] - m["qoe_antes"]
-            percent_evolucao = ((m["qoe_depois"] - m["qoe_antes"]) / m["qoe_antes"] * 100) if m["qoe_antes"] > 0 else 0
+            percent_evolucao = (
+                ((m["qoe_depois"] - m["qoe_antes"]) / m["qoe_antes"] * 100)
+                if m["qoe_antes"] > 0 else 0
+            )
             st.metric(
                 "QOE Médio Depois",
                 f'{m["qoe_depois"]}',
                 f"+{percent_evolucao:.1f}%",
-                help="Média depois das ações"
+                help="Média depois das ações (melhor QOE por node)"
             )
-        
+
         with col4:
             st.metric(
                 "Nodes Melhoraram",
                 m["melhoraram"],
-                help=f"De {m['acoes']} ações totais"
+                help="Quantidade de nodes (valor absoluto) que melhoraram no período"
             )
+
         
         # Segunda linha de métricas
         col1, col2, col3, col4 = st.columns(4)
@@ -558,6 +560,7 @@ elif menu == "Exportar Relatórios":
                 st.success("✅ Relatório gerado com sucesso!")
             except Exception as e:
                 st.error(f"❌ Erro ao gerar relatório: {str(e)}")
+
 
 
 
