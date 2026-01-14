@@ -59,19 +59,33 @@ if st.sidebar.button("🚪 Logout", use_container_width=True):
     st.rerun()
 
 # MENU
-menu = st.sidebar.radio(
-    "Gerencial QOE",
-    [
-        "Dashboard Geral",
-        "Setor MDU",
-        "Setor IaT",
-        "Setor Rede",
-        "Setor DTC",
-        "Análise por Cidade",
-        "Exportar Relatórios",
-        "Metodologia"
-    ]
-)
+# MENU DINÂMICO (por setor, em ordem alfabética)
+setores_disponiveis = []
+try:
+    if "df" in st.session_state and isinstance(st.session_state.df, pd.DataFrame):
+        df_tmp = st.session_state.df
+        if "SETOR" in df_tmp.columns:
+            setores_disponiveis = sorted(
+                df_tmp["SETOR"]
+                .dropna()
+                .astype(str)
+                .str.strip()
+                .str.upper()
+                .unique()
+                .tolist()
+            )
+except Exception:
+    setores_disponiveis = []
+
+opcoes_menu = ["Dashboard Geral"] + [f"Setor {s}" for s in setores_disponiveis] + [
+    "Exportar Relatórios",
+    "Upload de Dados",
+    "Histórico",
+    "Metodologia"
+]
+
+menu = st.sidebar.radio("Gerencial QOE", opcoes_menu)
+
 
 # CARREGA PLANILHA - carrega da pasta data/planilha.xlsx
 def processar_dataframe(df):
@@ -461,46 +475,7 @@ elif menu.startswith("Setor"):
         
         st.dataframe(df_tabela, use_container_width=True, hide_index=True)
 
-# ANÁLISE POR CIDADE
-elif menu == "Análise por Cidade":
-    st.title("Análise por Cidade")
-    st.caption("Análise detalhada por cidade")
-    
-    # Filtros
-    df_filtrado, _, _ = criar_filtros(df)
-    
-    if "Cidade" not in df_filtrado.columns:
-        st.warning("Não há coluna 'Cidade' nos dados.")
-    else:
-        cidades = sorted(df_filtrado["Cidade"].dropna().unique().tolist())
-        cidade_selecionada = st.selectbox("Selecione a cidade", cidades)
-        
-        df_cidade = df_filtrado[df_filtrado["Cidade"] == cidade_selecionada].copy()
-        
-        if len(df_cidade) == 0:
-            st.warning(f"Não há dados para a cidade {cidade_selecionada}.")
-        else:
-            m = calcular_metricas(df_cidade)
-            
-            # Métricas
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                st.metric("Total de Ações", m["acoes"])
-            with col2:
-                st.metric("QOE Médio Antes", f'{m["qoe_antes"]}')
-            with col3:
-                st.metric("QOE Médio Depois", f'{m["qoe_depois"]}')
-            with col4:
-                st.metric("Nodes Melhoraram", m["melhoraram"])
-            
-            st.divider()
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                grafico_evolucao_nodes(df_cidade)
-            with col2:
-                grafico_motivos(df_cidade)
+
 
 # EXPORTAR RELATÓRIOS
 elif menu == "Exportar Relatórios":
@@ -553,6 +528,21 @@ elif menu == "Metodologia":
     
     - **O sistema sempre utiliza a última planilha carregada como base de dados ativa.**
     """)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
