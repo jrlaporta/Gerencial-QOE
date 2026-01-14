@@ -195,39 +195,43 @@ m = {
 }
 
     
-    # Métricas principais
-    col1, col2, col3, col4 = st.columns(4)
-    
-    with col1:
-        st.metric(
-            "Total de Ações",
-            m["acoes"],
-            help="Total de intervenções realizadas"
-        )
-    
-    with col2:
-        st.metric(
-            "QOE Médio Antes",
-            f'{m["qoe_antes"]}',
-            help="Média antes das ações"
-        )
-    
-    with col3:
-        evolucao_qoe = m["qoe_depois"] - m["qoe_antes"]
-        percent_evolucao = ((m["qoe_depois"] - m["qoe_antes"]) / m["qoe_antes"] * 100) if m["qoe_antes"] > 0 else 0
-        st.metric(
-            "QOE Médio Depois",
-            f'{m["qoe_depois"]}',
-            f"+{percent_evolucao:.1f}%",
-            help="Média depois das ações"
-        )
-    
-    with col4:
-        st.metric(
-            "Nodes Melhoraram",
-            m["melhoraram"],
-            help=f"De {m['acoes']} ações totais"
-        )
+   # Métricas principais
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
+    st.metric(
+        "Total de Ações",
+        m["acoes"],
+        help="Total de intervenções realizadas"
+    )
+
+with col2:
+    st.metric(
+        "QOE Médio Antes",
+        f'{m["qoe_antes"]}',
+        help="Média antes das ações"
+    )
+
+with col3:
+    evolucao_qoe = m["qoe_depois"] - m["qoe_antes"]
+    percent_evolucao = (
+        ((m["qoe_depois"] - m["qoe_antes"]) / m["qoe_antes"] * 100)
+        if m["qoe_antes"] > 0 else 0
+    )
+    st.metric(
+        "QOE Médio Depois",
+        f'{m["qoe_depois"]}',
+        f"+{percent_evolucao:.1f}%",
+        help="Média depois das ações"
+    )
+
+with col4:
+    st.metric(
+        "Nodes Melhoraram",
+        m["melhoraram"],
+        help=f"De {m['acoes']} ações totais"
+    )
+
     
     # Segunda linha de métricas
     col1, col2, col3, col4 = st.columns(4)
@@ -554,6 +558,7 @@ elif menu == "Exportar Relatórios":
                 st.success("✅ Relatório gerado com sucesso!")
             except Exception as e:
                 st.error(f"❌ Erro ao gerar relatório: {str(e)}")
+
 
 
 
