@@ -121,6 +121,31 @@ if "df" not in st.session_state:
 
 df = st.session_state.df
 
+def consolidar_nodes(df_base):
+    """
+    Consolida dados por NODE (valor absoluto)
+    Regras:
+    - QOE ANTES: média
+    - QOE DEP: melhor valor (máximo)
+    """
+    df_nodes = (
+        df_base
+        .groupby("Node", as_index=False)
+        .agg({
+            "QOE ANTES": "mean",
+            "QOE DEP": "max"
+        })
+    )
+
+    df_nodes["Melhorou"] = df_nodes["QOE DEP"] > df_nodes["QOE ANTES"]
+    df_nodes["Piorou"] = df_nodes["QOE DEP"] < df_nodes["QOE ANTES"]
+    df_nodes["Manteve"] = df_nodes["QOE DEP"] == df_nodes["QOE ANTES"]
+    df_nodes["Atingiu_80"] = df_nodes["QOE DEP"] >= 80
+    df_nodes["Atingiu_80_pos"] = (df_nodes["QOE ANTES"] < 80) & (df_nodes["QOE DEP"] >= 80)
+
+    return df_nodes
+
+
 # Função auxiliar para criar filtros
 def criar_filtros(df):
     """Cria filtros de mês e cidade"""
@@ -153,7 +178,22 @@ if menu == "Dashboard Geral":
     df_filtrado, _, _ = criar_filtros(df)
     
     # Calcula métricas
-    m = calcular_metricas(df_filtrado)
+    df_nodes = consolidar_nodes(df_filtrado)
+
+m = {
+    "acoes": len(df_filtrado),
+    "qoe_antes": round(df_nodes["QOE ANTES"].mean(), 1),
+    "qoe_depois": round(df_nodes["QOE DEP"].mean(), 1),
+    "melhoraram": int(df_nodes["Melhorou"].sum()),
+    "pioraram": int(df_nodes["Piorou"].sum()),
+    "mantiveram": int(df_nodes["Manteve"].sum()),
+    "nodes_80": int(df_nodes["Atingiu_80"].sum()),
+    "atingiram_80": int(df_nodes["Atingiu_80_pos"].sum()),
+    "perc_atingiram_80": round(
+        (df_nodes["Atingiu_80_pos"].sum() / max(1, (df_nodes["QOE ANTES"] < 80).sum())) * 100, 1
+    )
+}
+
     
     # Métricas principais
     col1, col2, col3, col4 = st.columns(4)
@@ -257,7 +297,23 @@ elif menu.startswith("Setor"):
         st.info("Tente ajustar os filtros de mês ou cidade.")
     else:
         # Calcula métricas
-        m = calcular_metricas(df_setor)
+        df_nodes = consolidar_nodes(df_setor)
+
+m = {
+    "acoes": len(df_setor),
+    "qoe_antes": round(df_nodes["QOE ANTES"].mean(), 1),
+    "qoe_depois": round(df_nodes["QOE DEP"].mean(), 1),
+    "melhoraram": int(df_nodes["Melhorou"].sum()),
+    "pioraram": int(df_nodes["Piorou"].sum()),
+    "mantiveram": int(df_nodes["Manteve"].sum()),
+    "nodes_80": int(df_nodes["Atingiu_80"].sum()),
+    "atingiram_80": int(df_nodes["Atingiu_80_pos"].sum()),
+    "perc_atingiram_80": round(
+        (df_nodes["Atingiu_80_pos"].sum() / max(1, (df_nodes["QOE ANTES"] < 80).sum())) * 100, 1
+    ),
+    "perc_total_80": round((df_nodes["Atingiu_80"].sum() / len(df_nodes)) * 100, 1)
+}
+
         
         # Métricas principais
         col1, col2, col3, col4 = st.columns(4)
@@ -498,5 +554,8 @@ elif menu == "Exportar Relatórios":
                 st.success("✅ Relatório gerado com sucesso!")
             except Exception as e:
                 st.error(f"❌ Erro ao gerar relatório: {str(e)}")
+
+
+
 
 
