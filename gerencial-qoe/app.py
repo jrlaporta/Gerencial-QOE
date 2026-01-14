@@ -58,33 +58,7 @@ if st.sidebar.button("🚪 Logout", use_container_width=True):
         del st.session_state[key]
     st.rerun()
 
-# MENU
-# MENU DINÂMICO (por setor, em ordem alfabética)
-setores_disponiveis = []
-try:
-    if "df" in st.session_state and isinstance(st.session_state.df, pd.DataFrame):
-        df_tmp = st.session_state.df
-        if "SETOR" in df_tmp.columns:
-            setores_disponiveis = sorted(
-                df_tmp["SETOR"]
-                .dropna()
-                .astype(str)
-                .str.strip()
-                .str.upper()
-                .unique()
-                .tolist()
-            )
-except Exception:
-    setores_disponiveis = []
 
-opcoes_menu = ["Dashboard Geral"] + [f"Setor {s}" for s in setores_disponiveis] + [
-    "Exportar Relatórios",
-    "Upload de Dados",
-    "Histórico",
-    "Metodologia"
-]
-
-menu = st.sidebar.radio("Gerencial QOE", opcoes_menu)
 
 
 # CARREGA PLANILHA - carrega da pasta data/planilha.xlsx
@@ -124,6 +98,34 @@ else:
     st.stop()
 
 df = st.session_state.df
+# MENU (dinâmico por setor, em ordem alfabética)
+def _formatar_setor_label(up: str) -> str:
+    especiais = {"IAT": "IaT", "MDU": "MDU", "DTC": "DTC", "REDE": "Rede"}
+    if up in especiais:
+        return especiais[up]
+    return up.capitalize()
+
+setor_map = {}      # label bonito -> UPPER real do setor
+setores_labels = [] # lista de labels bonitos
+
+if isinstance(df, pd.DataFrame) and "SETOR" in df.columns:
+    for s in df["SETOR"].dropna().astype(str).str.strip().tolist():
+        if not s:
+            continue
+        up = s.upper()
+        label = _formatar_setor_label(up)
+        setor_map[label] = up
+
+    setores_labels = sorted(setor_map.keys(), key=lambda x: x.upper())
+
+opcoes_menu = (
+    ["Dashboard Geral"]
+    + [f"Setor {lbl}" for lbl in setores_labels]
+    + ["Exportar Relatórios", "Metodologia"]
+)
+
+menu = st.sidebar.radio("Gerencial QOE", opcoes_menu)
+
 
 def consolidar_nodes(df_base):
     """
@@ -304,7 +306,9 @@ if menu == "Dashboard Geral":
 
 # PÁGINAS DE SETORES
 elif menu.startswith("Setor"):
-    setor = menu.replace("Setor ", "")
+    setor_label = menu.replace("Setor ", "").strip()
+    setor = setor_map.get(setor_label, setor_label).upper()
+
     st.title(f"Setor {setor}")
     st.caption("Análise detalhada do setor")
 
