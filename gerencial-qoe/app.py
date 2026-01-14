@@ -125,46 +125,37 @@ else:
 
 df = st.session_state.df
 
-def _formatar_setor_label(s: str) -> str:
-    s = (s or "").strip()
-    if not s:
-        return s
-    especiais = {"IAT": "IaT", "MDU": "MDU", "DTC": "DTC", "REDE": "Rede"}
-    up = s.upper()
-    if up in especiais:
-        return especiais[up]
-    return up.capitalize()
-
-# >>> IMPORTANTE: construir setores a partir do df já carregado
-setor_map = {}
-setores_labels = []
-
-if isinstance(df, pd.DataFrame) and "SETOR" in df.columns:
-    valores = (
-        df["SETOR"]
-        .dropna()
-        .astype(str)
-        .str.strip()
-        .tolist()
+def consolidar_nodes(df_base):
+    """
+    Consolida dados por NODE (valor absoluto)
+    Regras:
+    - QOE ANTES: média
+    - QOE DEP: melhor valor (máximo)
+    """
+    df_base = df_base.copy()
+    
+    # Converte QOE para numérico
+    if "QOE ANTES" in df_base.columns:
+        df_base["QOE ANTES"] = pd.to_numeric(df_base["QOE ANTES"], errors="coerce")
+    if "QOE DEP" in df_base.columns:
+        df_base["QOE DEP"] = pd.to_numeric(df_base["QOE DEP"], errors="coerce")
+    
+    df_nodes = (
+        df_base
+        .groupby("Node", as_index=False)
+        .agg({
+            "QOE ANTES": "mean",
+            "QOE DEP": "max"
+        })
     )
 
-    for s in valores:
-        if not s:
-            continue
-        up = s.upper()
-        label = _formatar_setor_label(up)
-        setor_map[label] = up
+    df_nodes["Melhorou"] = df_nodes["QOE DEP"] > df_nodes["QOE ANTES"]
+    df_nodes["Piorou"] = df_nodes["QOE DEP"] < df_nodes["QOE ANTES"]
+    df_nodes["Manteve"] = df_nodes["QOE DEP"] == df_nodes["QOE ANTES"]
+    df_nodes["Atingiu_80"] = df_nodes["QOE DEP"] >= 80
+    df_nodes["Atingiu_80_pos"] = (df_nodes["QOE ANTES"] < 80) & (df_nodes["QOE DEP"] >= 80)
 
-    setores_labels = sorted(setor_map.keys(), key=lambda x: x.upper())
-
-opcoes_menu = (
-    ["Dashboard Geral"]
-    + [f"Setor {lbl}" for lbl in setores_labels]
-    + ["Exportar Relatórios", "Upload de Dados", "Histórico", "Metodologia"]
-)
-
-menu = st.sidebar.radio("Gerencial QOE", opcoes_menu)
-
+    return df_nodes
 
 
 # Função auxiliar para criar filtros
@@ -537,20 +528,6 @@ elif menu == "Metodologia":
     
     - **O sistema sempre utiliza a última planilha carregada como base de dados ativa.**
     """)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
