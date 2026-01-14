@@ -10,7 +10,7 @@ import pandas as pd
 from datetime import datetime
 
 from modules.auth import autenticar
-from modules.loader import carregar_excel, salvar_dados_atual, carregar_dados_salvos
+from modules.loader import carregar_planilha_local
 from modules.metrics import calcular_metricas
 from modules.charts import grafico_acoes_por_cidade, grafico_motivos, grafico_evolucao_nodes
 from modules.pdf_export import gerar_pdf, gerar_pdf_completo
@@ -69,56 +69,45 @@ menu = st.sidebar.radio(
         "Setor DTC",
         "Análise por Cidade",
         "Exportar Relatórios",
-        "Upload de Dados",
-        "Histórico",
         "Metodologia"
     ]
 )
 
-# UPLOAD - carrega dados salvos se não houver no session_state
-if "df" not in st.session_state:
-    df_salvo = carregar_dados_salvos()
-    if df_salvo is not None:
-        st.session_state.df = df_salvo
-    else:
-        # Não há dados salvos nem no session_state
-        if st.session_state.perfil == "admin":
-            st.info("📁 Faça o upload de uma planilha Excel (.xlsx) para começar a análise.")
-            arq = st.sidebar.file_uploader("Upload Excel", type=["xlsx"])
-            if arq:
-                try:
-                    df = carregar_excel(arq)
-                    
-                    # Validação de colunas essenciais
-                    colunas_obrigatorias = ["QOE ANTES", "QOE DEP", "SETOR"]
-                    colunas_faltando = [col for col in colunas_obrigatorias if col not in df.columns]
-                    
-                    if colunas_faltando:
-                        st.error(f"❌ A planilha está faltando as seguintes colunas obrigatórias: {', '.join(colunas_faltando)}")
-                        st.info(f"📋 Colunas obrigatórias: {', '.join(colunas_obrigatorias)}")
-                    else:
-                        # Garante que Node existe, criando se necessário
-                        if "Node" not in df.columns:
-                            df["Node"] = df.index.astype(str)
-                        
-                        # Converte Data Execução se existir
-                        if "Data Execução" in df.columns:
-                            df["Data Execução"] = pd.to_datetime(df["Data Execução"], errors="coerce")
-                            df["Mes"] = df["Data Execução"].dt.to_period("M").astype(str)
-                        
-                        st.session_state.df = df
-                        salvar_dados_atual(df)  # Salva para persistir
-                        st.success(f"✅ Planilha carregada com sucesso! {len(df)} registros encontrados.")
-                        st.rerun()
-                except Exception as e:
-                    st.error(f"❌ Erro ao processar a planilha: {str(e)}")
-                    st.info("Por favor, verifique se o arquivo está no formato correto (.xlsx)")
-            st.stop()
-        else:
-            # Usuário comum: informa que precisa que admin carregue dados
-            st.warning("⚠️ Nenhum dado foi carregado no sistema ainda.")
-            st.info("Por favor, solicite ao administrador que faça o upload de uma planilha para começar a análise.")
-            st.stop()
+# CARREGA PLANILHA - carrega da pasta data/planilha.xlsx
+def processar_dataframe(df):
+    """Processa o DataFrame após carregamento"""
+    # Validação de colunas essenciais
+    colunas_obrigatorias = ["QOE ANTES", "QOE DEP", "SETOR"]
+    colunas_faltando = [col for col in colunas_obrigatorias if col not in df.columns]
+    
+    if colunas_faltando:
+        raise ValueError(f"A planilha está faltando as seguintes colunas obrigatórias: {', '.join(colunas_faltando)}")
+    
+    # Garante que Node existe, criando se necessário
+    if "Node" not in df.columns:
+        df["Node"] = df.index.astype(str)
+    
+    # Converte Data Execução se existir
+    if "Data Execução" in df.columns:
+        df["Data Execução"] = pd.to_datetime(df["Data Execução"], errors="coerce")
+        df["Mes"] = df["Data Execução"].dt.to_period("M").astype(str)
+    
+    return df
+
+# Carrega dados da planilha local (data/planilha.xlsx)
+# O sistema sempre carrega a última versão do arquivo
+df_carregado = carregar_planilha_local()
+if df_carregado is not None:
+    try:
+        df = processar_dataframe(df_carregado)
+        st.session_state.df = df
+    except Exception as e:
+        st.error(f"❌ Erro ao processar a planilha: {str(e)}")
+        st.stop()
+else:
+    st.error("❌ Planilha não encontrada. Por favor, adicione o arquivo 'Gerencial_QOE.xlsx' na pasta 'data/' do projeto.")
+    st.info("📋 O arquivo deve estar localizado em: data/Gerencial_QOE.xlsx")
+    st.stop()
 
 df = st.session_state.df
 
@@ -190,6 +179,7 @@ if menu == "Dashboard Geral":
     df_nodes = consolidar_nodes(df_filtrado)
 
     m = {
+        "total_nodes": len(df_nodes),
         "acoes": len(df_filtrado),
         "qoe_antes": round(df_nodes["QOE ANTES"].mean(), 1),
         "qoe_depois": round(df_nodes["QOE DEP"].mean(), 1),
@@ -208,19 +198,26 @@ if menu == "Dashboard Geral":
 
     with col1:
         st.metric(
+            "Total de Nodes",
+            m["total_nodes"],
+            help="Total de nodes (valor absoluto)"
+        )
+
+    with col2:
+        st.metric(
             "Total de Ações",
             m["acoes"],
             help="Total de intervenções realizadas"
         )
 
-    with col2:
+    with col3:
         st.metric(
             "QOE Médio Antes",
             f'{m["qoe_antes"]}',
             help="Média antes das ações"
         )
 
-    with col3:
+    with col4:
         evolucao_qoe = m["qoe_depois"] - m["qoe_antes"]
         percent_evolucao = (
             ((m["qoe_depois"] - m["qoe_antes"]) / m["qoe_antes"] * 100)
@@ -233,38 +230,41 @@ if menu == "Dashboard Geral":
             help="Média depois das ações"
         )
 
-    with col4:
-        st.metric(
-            "Nodes Melhoraram",
-            m["melhoraram"],
-            help=f"De {m['acoes']} ações totais"
-        )
-
     # Segunda linha de métricas
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         st.metric(
-            "Nodes QOE ≥ 80 (Depois)",
-            m["nodes_80"],
-            help=f"De {m['acoes']} ações totais"
+            "Nodes Melhoraram",
+            m["melhoraram"],
+            help=f"De {m['total_nodes']} nodes totais"
         )
     
     with col2:
+        st.metric(
+            "Nodes QOE ≥ 80 (Depois)",
+            m["nodes_80"],
+            help=f"De {m['total_nodes']} nodes totais"
+        )
+    
+    with col3:
         st.metric(
             "Atingiram ≥ 80",
             m["atingiram_80"],
             help=f"Nodes que estavam < 80"
         )
     
-    with col3:
+    with col4:
         st.metric(
             "% Atingiram ≥ 80",
             f"{m['perc_atingiram_80']}%",
             help="Dos que estavam abaixo de 80"
         )
     
-    with col4:
+    # Terceira linha de métricas
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
         evolucao_texto = f"{m['melhoraram']}↑ {m['pioraram']}↓ {m['mantiveram']}="
         st.metric(
             "Evolução",
@@ -311,6 +311,7 @@ elif menu.startswith("Setor"):
         df_nodes = consolidar_nodes(df_setor)
 
         m = {
+            "total_nodes": len(df_nodes),
             "acoes": len(df_setor),
             "qoe_antes": round(df_nodes["QOE ANTES"].mean(), 1),
             "qoe_depois": round(df_nodes["QOE DEP"].mean(), 1),
@@ -330,19 +331,26 @@ elif menu.startswith("Setor"):
 
         with col1:
             st.metric(
+                "Total de Nodes",
+                m["total_nodes"],
+                help="Total de nodes (valor absoluto) no setor"
+            )
+
+        with col2:
+            st.metric(
                 "Total de Ações",
                 m["acoes"],
                 help="Intervenções no setor"
             )
 
-        with col2:
+        with col3:
             st.metric(
                 "QOE Médio Antes",
                 f'{m["qoe_antes"]}',
                 help="Média antes das ações (por node absoluto)"
             )
 
-        with col3:
+        with col4:
             percent_evolucao = (
                 ((m["qoe_depois"] - m["qoe_antes"]) / m["qoe_antes"] * 100)
                 if m["qoe_antes"] > 0 else 0
@@ -354,43 +362,35 @@ elif menu.startswith("Setor"):
                 help="Média depois das ações (melhor QOE por node)"
             )
 
-        with col4:
-            st.metric(
-                "Nodes Melhoraram",
-                m["melhoraram"],
-                help="Quantidade de nodes (valor absoluto) que melhoraram no período"
-            )
-
-        
         # Segunda linha de métricas
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
             st.metric(
-                "Nodes QOE ≥ 80 (Depois)",
-                m["nodes_80"],
-                help=f"De {m['acoes']} ações totais"
+                "Nodes Melhoraram",
+                m["melhoraram"],
+                help="Quantidade de nodes (valor absoluto) que melhoraram no período"
             )
         
         with col2:
             st.metric(
-                "Atingiram ≥ 80",
-                m["atingiram_80"],
-                help=f"De {m['acoes']} ações totais"
+                "Nodes QOE ≥ 80 (Depois)",
+                m["nodes_80"],
+                help=f"De {m['total_nodes']} nodes totais"
             )
         
         with col3:
             st.metric(
-                "% Atingiram ≥ 80",
-                f"{m['perc_atingiram_80']}%",
-                help=f"De {m['acoes']} ações totais"
+                "Atingiram ≥ 80",
+                m["atingiram_80"],
+                help=f"Nodes que estavam < 80"
             )
         
         with col4:
             st.metric(
-                "% Total com QOE ≥ 80",
-                f"{m['perc_total_80']}%",
-                help="Do total de ações"
+                "% Atingiram ≥ 80",
+                f"{m['perc_atingiram_80']}%",
+                help="Dos que estavam abaixo de 80"
             )
         
         st.divider()
@@ -502,45 +502,6 @@ elif menu == "Análise por Cidade":
             with col2:
                 grafico_motivos(df_cidade)
 
-# UPLOAD DE DADOS
-elif menu == "Upload de Dados":
-    if st.session_state.perfil == "admin":
-        st.title("📁 Upload de Dados")
-        st.info("Faça upload de uma nova planilha Excel (.xlsx) para substituir os dados atuais.")
-        
-        arq = st.file_uploader("Selecione o arquivo Excel", type=["xlsx"])
-        if arq:
-            try:
-                df_novo = carregar_excel(arq)
-                
-                # Validação de colunas essenciais
-                colunas_obrigatorias = ["QOE ANTES", "QOE DEP", "SETOR"]
-                colunas_faltando = [col for col in colunas_obrigatorias if col not in df_novo.columns]
-                
-                if colunas_faltando:
-                    st.error(f"❌ A planilha está faltando as seguintes colunas obrigatórias: {', '.join(colunas_faltando)}")
-                    st.info(f"📋 Colunas obrigatórias: {', '.join(colunas_obrigatorias)}")
-                else:
-                    # Garante que Node existe
-                    if "Node" not in df_novo.columns:
-                        df_novo["Node"] = df_novo.index.astype(str)
-                    
-                    # Converte Data Execução se existir
-                    if "Data Execução" in df_novo.columns:
-                        df_novo["Data Execução"] = pd.to_datetime(df_novo["Data Execução"], errors="coerce")
-                        df_novo["Mes"] = df_novo["Data Execução"].dt.to_period("M").astype(str)
-                    
-                    st.session_state.df = df_novo
-                    salvar_dados_atual(df_novo)  # Salva para persistir
-                    st.success(f"✅ Planilha carregada com sucesso! {len(df_novo)} registros encontrados.")
-                    st.rerun()
-            except Exception as e:
-                st.error(f"❌ Erro ao processar a planilha: {str(e)}")
-                st.info("Por favor, verifique se o arquivo está no formato correto (.xlsx)")
-    else:
-        st.warning("⚠️ Apenas administradores podem fazer upload de dados.")
-        st.info("Você está visualizando os dados já carregados no sistema.")
-
 # EXPORTAR RELATÓRIOS
 elif menu == "Exportar Relatórios":
     st.title("📄 Exportar Relatórios")
@@ -592,6 +553,11 @@ elif menu == "Metodologia":
     
     - **O sistema sempre utiliza a última planilha carregada como base de dados ativa.**
     """)
+
+
+
+
+
 
 
 
