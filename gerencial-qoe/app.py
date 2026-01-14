@@ -70,7 +70,8 @@ menu = st.sidebar.radio(
         "Análise por Cidade",
         "Exportar Relatórios",
         "Upload de Dados",
-        "Histórico"
+        "Histórico",
+        "Metodologia"
     ]
 )
 
@@ -128,6 +129,14 @@ def consolidar_nodes(df_base):
     - QOE ANTES: média
     - QOE DEP: melhor valor (máximo)
     """
+    df_base = df_base.copy()
+    
+    # Converte QOE para numérico
+    if "QOE ANTES" in df_base.columns:
+        df_base["QOE ANTES"] = pd.to_numeric(df_base["QOE ANTES"], errors="coerce")
+    if "QOE DEP" in df_base.columns:
+        df_base["QOE DEP"] = pd.to_numeric(df_base["QOE DEP"], errors="coerce")
+    
     df_nodes = (
         df_base
         .groupby("Node", as_index=False)
@@ -180,59 +189,57 @@ if menu == "Dashboard Geral":
     # Calcula métricas
     df_nodes = consolidar_nodes(df_filtrado)
 
-m = {
-    "acoes": len(df_filtrado),
-    "qoe_antes": round(df_nodes["QOE ANTES"].mean(), 1),
-    "qoe_depois": round(df_nodes["QOE DEP"].mean(), 1),
-    "melhoraram": int(df_nodes["Melhorou"].sum()),
-    "pioraram": int(df_nodes["Piorou"].sum()),
-    "mantiveram": int(df_nodes["Manteve"].sum()),
-    "nodes_80": int(df_nodes["Atingiu_80"].sum()),
-    "atingiram_80": int(df_nodes["Atingiu_80_pos"].sum()),
-    "perc_atingiram_80": round(
-        (df_nodes["Atingiu_80_pos"].sum() / max(1, (df_nodes["QOE ANTES"] < 80).sum())) * 100, 1
-    )
-}
+    m = {
+        "acoes": len(df_filtrado),
+        "qoe_antes": round(df_nodes["QOE ANTES"].mean(), 1),
+        "qoe_depois": round(df_nodes["QOE DEP"].mean(), 1),
+        "melhoraram": int(df_nodes["Melhorou"].sum()),
+        "pioraram": int(df_nodes["Piorou"].sum()),
+        "mantiveram": int(df_nodes["Manteve"].sum()),
+        "nodes_80": int(df_nodes["Atingiu_80"].sum()),
+        "atingiram_80": int(df_nodes["Atingiu_80_pos"].sum()),
+        "perc_atingiram_80": round(
+            (df_nodes["Atingiu_80_pos"].sum() / max(1, (df_nodes["QOE ANTES"] < 80).sum())) * 100, 1
+        )
+    }
 
-    
-   # Métricas principais
-col1, col2, col3, col4 = st.columns(4)
+    # Métricas principais
+    col1, col2, col3, col4 = st.columns(4)
 
-with col1:
-    st.metric(
-        "Total de Ações",
-        m["acoes"],
-        help="Total de intervenções realizadas"
-    )
+    with col1:
+        st.metric(
+            "Total de Ações",
+            m["acoes"],
+            help="Total de intervenções realizadas"
+        )
 
-with col2:
-    st.metric(
-        "QOE Médio Antes",
-        f'{m["qoe_antes"]}',
-        help="Média antes das ações"
-    )
+    with col2:
+        st.metric(
+            "QOE Médio Antes",
+            f'{m["qoe_antes"]}',
+            help="Média antes das ações"
+        )
 
-with col3:
-    evolucao_qoe = m["qoe_depois"] - m["qoe_antes"]
-    percent_evolucao = (
-        ((m["qoe_depois"] - m["qoe_antes"]) / m["qoe_antes"] * 100)
-        if m["qoe_antes"] > 0 else 0
-    )
-    st.metric(
-        "QOE Médio Depois",
-        f'{m["qoe_depois"]}',
-        f"+{percent_evolucao:.1f}%",
-        help="Média depois das ações"
-    )
+    with col3:
+        evolucao_qoe = m["qoe_depois"] - m["qoe_antes"]
+        percent_evolucao = (
+            ((m["qoe_depois"] - m["qoe_antes"]) / m["qoe_antes"] * 100)
+            if m["qoe_antes"] > 0 else 0
+        )
+        st.metric(
+            "QOE Médio Depois",
+            f'{m["qoe_depois"]}',
+            f"+{percent_evolucao:.1f}%",
+            help="Média depois das ações"
+        )
 
-with col4:
-    st.metric(
-        "Nodes Melhoraram",
-        m["melhoraram"],
-        help=f"De {m['acoes']} ações totais"
-    )
+    with col4:
+        st.metric(
+            "Nodes Melhoraram",
+            m["melhoraram"],
+            help=f"De {m['acoes']} ações totais"
+        )
 
-    
     # Segunda linha de métricas
     col1, col2, col3, col4 = st.columns(4)
     
@@ -560,6 +567,31 @@ elif menu == "Exportar Relatórios":
                 st.success("✅ Relatório gerado com sucesso!")
             except Exception as e:
                 st.error(f"❌ Erro ao gerar relatório: {str(e)}")
+
+# METODOLOGIA
+elif menu == "Metodologia":
+    st.title("📚 Metodologia de Cálculo")
+    st.markdown("""
+    ## Metodologia de Cálculo:
+    
+    Cada linha da planilha representa uma ação técnica.
+    
+    Um Node pode possuir múltiplas ações no período.
+    
+    Para fins de análise gerencial:
+    
+    - **O QOE Antes de um Node é calculado pela média de suas ações.**
+    
+    - **O QOE Depois de um Node considera o melhor valor obtido.**
+    
+    - **A melhoria é avaliada comparando QOE Depois e QOE Antes.**
+    
+    - **No Dashboard Geral, os Nodes são consolidados globalmente.**
+    
+    - **Nas visões por setor, os Nodes são consolidados apenas dentro do setor selecionado.**
+    
+    - **O sistema sempre utiliza a última planilha carregada como base de dados ativa.**
+    """)
 
 
 
